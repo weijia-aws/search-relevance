@@ -178,6 +178,7 @@ opensearchplugin {
     classname "${packagePath}.${pathToPlugin}.${pluginClassName}"
     licenseFile rootProject.file('LICENSE.txt')
     noticeFile rootProject.file('NOTICE.txt')
+    extendedPlugins = ['opensearch-job-scheduler']
 }
 
 dependencyLicenses.enabled = false
@@ -198,6 +199,7 @@ dependencies {
     implementation "org.opensearch:opensearch:${opensearch_version}"
     api "org.opensearch:opensearch:${opensearch_version}"
     api group: 'org.opensearch', name:'opensearch-ml-client', version: "${opensearch_build}"
+    compileOnly "org.opensearch:opensearch-job-scheduler-spi:${opensearch_build}"
     implementation group: 'com.google.guava', name: 'guava', version:'33.4.8-jre'
     compileOnly group: 'org.apache.commons', name: 'commons-lang3', version: '3.19.0'
     implementation group: 'org.apache.commons', name: 'commons-lang3', version: '3.19.0'
@@ -233,6 +235,7 @@ dependencies {
     zipArchive group: 'org.opensearch.plugin', name:'neural-search', version: "${opensearch_build}"
     zipArchive group: 'org.opensearch.plugin', name:'opensearch-ubi', version: "${opensearch_build}"
     opensearchPlugin "org.opensearch.plugin:opensearch-security:${opensearch_build}@zip"
+    opensearchPlugin "org.opensearch.plugin:opensearch-job-scheduler:${opensearch_build}@zip"
 
     configurations.all {
         resolutionStrategy {
@@ -296,6 +299,7 @@ ext.resolvePluginFile = { pluginId ->
     }
 }
 def securityPluginFile = resolvePluginFile("opensearch-security")
+def jobSchedulerFile = resolvePluginFile("opensearch-job-scheduler")
 
 // === Setup security test ===
 // This flag indicates the existence of security plugin
@@ -373,6 +377,11 @@ testClusters.integTest {
             node.setting("plugins.security.system_indices.enabled", "true")
         }
     }
+}
+
+// Set up integration test clusters, installs all zipArchive dependencies
+testClusters.yamlRestTest {
+    plugin(provider(jobSchedulerFile))
 }
 
 // Re-write WaitForHttpResource with updated code to support security plugin use case
