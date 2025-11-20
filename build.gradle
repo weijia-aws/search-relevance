@@ -280,6 +280,15 @@ task integTest(type: RestIntegTestTask) {
 }
 tasks.named("check").configure { dependsOn(integTest) }
 
+integTest {
+    // The --debug-jvm command-line option makes the cluster debuggable; this makes the tests debuggable
+    if (System.getProperty("test.debug") != null) {
+        jvmArgs '-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=*:5005'
+    }
+    // Pass ubi.available as configurable property via -Dubi.available=false
+    systemProperty 'ubi.available', System.getProperty('ubi.available', 'true')
+}
+
 ext.resolvePluginFile = { pluginId ->
     return new Callable<RegularFile>() {
         @Override
