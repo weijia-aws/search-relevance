@@ -19,7 +19,7 @@ import java.util.stream.Collectors
 
 buildscript {
     ext {
-        opensearch_version = System.getProperty("opensearch.version", "3.3.0-SNAPSHOT")
+        opensearch_version = System.getProperty("opensearch.version", "3.4.0-SNAPSHOT")
         isSnapshot = "true" == System.getProperty("build.snapshot", "true")
         buildVersionQualifier = System.getProperty("build.version_qualifier", "")
         // 2.2.0-SNAPSHOT -> 2.2.0.0-SNAPSHOT
@@ -47,9 +47,10 @@ buildscript {
 
     dependencies {
         classpath "org.opensearch.gradle:build-tools:${opensearch_version}"
-        classpath "com.diffplug.spotless:spotless-plugin-gradle:8.0.0"
+        classpath "com.diffplug.spotless:spotless-plugin-gradle:8.1.0"
         classpath "com.github.form-com.diff-coverage-gradle:diff-coverage:0.9.5"
-        classpath "io.freefair.gradle:lombok-plugin:9.0.0"
+        classpath "io.freefair.gradle:lombok-plugin:9.1.0"
+        classpath "de.thetaphi:forbiddenapis:3.10" // Upgrade for JDK 25 support
     }
 }
 
@@ -116,8 +117,10 @@ allprojects {
     }
 
     plugins.withId('java') {
-        targetCompatibility = JavaVersion.VERSION_21
-        sourceCompatibility = JavaVersion.VERSION_21
+        java {
+            sourceCompatibility = JavaVersion.VERSION_21
+            targetCompatibility = JavaVersion.VERSION_21
+        }
     }
 }
 
@@ -192,7 +195,14 @@ validateNebulaPom.enabled = false
 configurations {
     zipArchive
     opensearchPlugin
-    all*.exclude group: 'org.slf4j', module: 'slf4j-log4j12'
+}
+
+configurations.all {
+    resolutionStrategy {
+        force("com.google.guava:guava:33.4.8-jre") // CVE for 31.1
+        force("com.google.errorprone:error_prone_annotations:2.43.0") // Fix version conflict
+    }
+    exclude group: 'org.slf4j', module: 'slf4j-log4j12'
 }
 
 dependencies {
@@ -236,13 +246,6 @@ dependencies {
     zipArchive group: 'org.opensearch.plugin', name:'opensearch-ubi', version: "${opensearch_build}"
     opensearchPlugin "org.opensearch.plugin:opensearch-security:${opensearch_build}@zip"
     opensearchPlugin "org.opensearch.plugin:opensearch-job-scheduler:${opensearch_build}@zip"
-
-    configurations.all {
-        resolutionStrategy {
-            force("com.google.guava:guava:33.4.8-jre") // CVE for 31.1
-            force("com.google.errorprone:error_prone_annotations:2.43.0") // Fix version conflict
-        }
-    }
 }
 
 def _numNodes = findProperty('numNodes') as Integer ?: 1
@@ -594,10 +597,9 @@ ext.createDiffFile = { ->
     // Only run locally
     if (!System.getenv('CI')) {
         file.withOutputStream { out ->
-            exec {
-                commandLine 'git', 'diff', '--no-color', '--minimal', diffBase
-                standardOutput = out
-            }
+            providers.exec {
+                commandLine('git', 'diff', '--no-color', '--minimal', diffBase)
+            }.standardOutput.asText.get().bytes.each { out.write(it) }
         }
     }
     return file
